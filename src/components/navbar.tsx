@@ -8,8 +8,10 @@ import { Button } from './ui/button';
 
 interface NavbarProps {
   user?: {
-    name: string | null;
-    email: string;
+    name?: string | null;
+    email?: string | null;
+    id?: string;
+    image?: string | null;
   } | null;
 }
 

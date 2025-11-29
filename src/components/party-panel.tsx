@@ -202,7 +202,9 @@ function CharacterRow({
             </Badge>
           )}
           {isMasterChar && (
-            <Crown className="h-3 w-3 text-yellow-500" title="Персонаж мастера" />
+            <span title="Персонаж мастера">
+              <Crown className="h-3 w-3 text-yellow-500" />
+            </span>
           )}
         </div>
         <div className="text-xs text-gray-500">
@@ -308,7 +310,7 @@ function AddToPartyDialog({
   });
 
   // Текущая партия для фильтрации
-  const { data: partyData } = useQuery({
+  const { data: partyData } = useQuery<{ party: any[] }>({
     queryKey: ['party', companyId],
     enabled: open,
   });

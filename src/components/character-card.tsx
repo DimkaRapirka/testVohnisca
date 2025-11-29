@@ -90,7 +90,9 @@ export function CharacterCard({
                   {typeInfo.label}
                 </Badge>
                 {!character.isPublic && (
-                  <EyeOff className="h-4 w-4 text-gray-500" title="Скрытый персонаж" />
+                  <span title="Скрытый персонаж">
+                    <EyeOff className="h-4 w-4 text-gray-500" />
+                  </span>
                 )}
               </div>
               <CardDescription>

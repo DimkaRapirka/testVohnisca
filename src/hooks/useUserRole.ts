@@ -30,7 +30,7 @@ export function useUserRole(masterId?: string, playerIds?: string[]): UseUserRol
     const isPlayer = playerIds?.includes(userId) || false;
 
     return {
-      role: isMaster ? 'master' : isPlayer ? 'player' : null,
+      role: (isMaster ? 'master' : isPlayer ? 'player' : null) as UserRole | null,
       isMaster,
       isPlayer,
     };

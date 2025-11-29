@@ -155,9 +155,13 @@ function NpcRow({ npc, onEdit }: { npc: any; onEdit: () => void }) {
         <div className="flex items-center gap-2">
           <span className="font-medium truncate">{npc.name}</span>
           {npc.isPublic ? (
-            <Eye className="h-3 w-3 text-green-400" title="Виден игрокам" />
+            <span title="Виден игрокам">
+              <Eye className="h-3 w-3 text-green-400" />
+            </span>
           ) : (
-            <EyeOff className="h-3 w-3 text-gray-500" title="Скрыт от игроков" />
+            <span title="Скрыт от игроков">
+              <EyeOff className="h-3 w-3 text-gray-500" />
+            </span>
           )}
         </div>
         <p className="text-sm text-gray-400 truncate">

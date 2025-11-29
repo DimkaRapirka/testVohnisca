@@ -41,6 +41,8 @@ export function Campfire() {
     }
 
     function animate() {
+      if (!ctx || !canvas) return;
+      
       ctx.fillStyle = 'rgba(10, 10, 15, 0.1)';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
