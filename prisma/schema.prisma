@@ -1,0 +1,597 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  password      String?
+  avatar        String?
+  theme         String    @default("dark")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // OAuth
+  accounts      Account[]
+  sessions      Session[]
+
+  // Relations
+  ownedCompanies    Company[]       @relation("CompanyMaster")
+  playerCompanies   CompanyPlayer[]
+  characters        Character[]
+  notes             Note[]
+  diceRolls         DiceRoll[]
+  chatMessages      ChatMessage[]
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model Company {
+  id              String    @id @default(cuid())
+  name            String
+  description     String?
+  extendedDesc    String?
+  genre           String?
+  partyLevel      Int       @default(1)
+  status          String    @default("ACTIVE")
+  imageUrl        String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  masterId        String
+  master          User      @relation("CompanyMaster", fields: [masterId], references: [id], onDelete: Cascade)
+
+  players         CompanyPlayer[]
+  parts           Part[]
+  encounters      Encounter[]
+  characters      Character[]
+  traders         Trader[]
+  chatMessages    ChatMessage[]
+  wikiEntries     WikiEntry[]
+  invitations     Invitation[]
+  sessionLogs     SessionLog[]
+
+  @@map("companies")
+}
+
+// Часть/Глава кампании
+model Part {
+  id              String    @id @default(cuid())
+  name            String
+  description     String?
+  masterContent   String?   // Скрытый контент для мастера
+  publicContent   String?   // Публичный контент для игроков
+  order           Int       @default(0)
+  isPublished     Boolean   @default(false) // Открыта ли часть игрокам
+  imageUrl        String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  companyId       String
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  locations       Location[]
+  events          Event[]
+
+  @@map("parts")
+}
+
+// Локация
+model Location {
+  id              String    @id @default(cuid())
+  name            String
+  description     String?
+  masterNotes     String?   // Заметки мастера (скрытые)
+  publicDesc      String?   // Публичное описание
+  imageUrl        String?
+  mapUrl          String?
+  isPublished     Boolean   @default(false)
+  order           Int       @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  partId          String
+  part            Part      @relation(fields: [partId], references: [id], onDelete: Cascade)
+
+  npcs            Npc[]
+  creatures       LocationCreature[]
+  lootItems       LootItem[]
+  events          Event[]
+
+  @@map("locations")
+}
+
+// NPC
+model Npc {
+  id              String    @id @default(cuid())
+  name            String
+  description     String?
+  masterNotes     String?   // Секретная информация
+  publicDesc      String?   // Публичное описание
+  imageUrl        String?
+  race            String?
+  occupation      String?
+  isPublished     Boolean   @default(false)
+  isAlive         Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  locationId      String?
+  location        Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+
+  @@map("npcs")
+}
+
+// Существо/Моб в локации
+model LocationCreature {
+  id              String    @id @default(cuid())
+  name            String
+  description     String?
+  masterNotes     String?
+  stats           String?   // JSON со статами
+  quantity        Int       @default(1)
+  isPublished     Boolean   @default(false)
+  isDefeated      Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+
+  locationId      String
+  location        Location  @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@map("location_creatures")
+}
+
+// Лут в локации
+model LootItem {
+  id              String    @id @default(cuid())
+  name            String
+  description     String?
+  masterNotes     String?
+  value           Int       @default(0)
+  rarity          String    @default("common") // common, uncommon, rare, epic, legendary
+  isPublished     Boolean   @default(false)
+  isCollected     Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+
+  locationId      String
+  location        Location  @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@map("loot_items")
+}
+
+// События
+model Event {
+  id              String    @id @default(cuid())
+  name            String
+  description     String?
+  masterNotes     String?
+  publicDesc      String?
+  eventType       String    @default("story") // story, combat, social, discovery
+  isPublished     Boolean   @default(false)
+  isCompleted     Boolean   @default(false)
+  order           Int       @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  partId          String?
+  part            Part?     @relation(fields: [partId], references: [id], onDelete: SetNull)
+
+  locationId      String?
+  location        Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+
+  @@map("events")
+}
+
+// Wiki записи (лор, фракции, мифология)
+model WikiEntry {
+  id              String    @id @default(cuid())
+  title           String
+  content         String?
+  masterContent   String?   // Скрытый контент
+  category        String    @default("lore") // lore, faction, mythology, item, other
+  imageUrl        String?
+  isPublished     Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  companyId       String
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@map("wiki_entries")
+}
+
+// Чат сообщения
+model ChatMessage {
+  id              String    @id @default(cuid())
+  content         String
+  isSystem        Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  companyId       String
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@map("chat_messages")
+}
+
+model CompanyPlayer {
+  id                String   @id @default(cuid())
+  companyId         String
+  userId            String
+  activeCharacterId String?  // Активный персонаж в этой кампании
+  joinedAt          DateTime @default(now())
+
+  company    Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, userId])
+  @@map("company_players")
+}
+
+// Приглашения в кампанию
+model Invitation {
+  id              String    @id @default(cuid())
+  companyId       String
+  invitedEmail    String?   // Email приглашенного (если еще не зарегистрирован)
+  invitedUserId   String?   // ID пользователя (если уже зарегистрирован)
+  inviteCode      String    @unique @default(cuid()) // Уникальный код приглашения
+  role            String    @default("player") // player или master
+  status          String    @default("pending") // pending, accepted, declined, expired
+  message         String?   // Сообщение от мастера
+  createdAt       DateTime  @default(now())
+  expiresAt       DateTime?
+  respondedAt     DateTime?
+
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@map("invitations")
+}
+
+// Хроника кампании - логи сессий
+model SessionLog {
+  id              String    @id @default(cuid())
+  companyId       String
+  title           String    // "Сессия 4: Осада форта"
+  sessionNumber   Int       @default(1)
+  summary         String    // Краткое описание событий
+  detailedNotes   String?   // Подробные заметки мастера
+  playedAt        DateTime  @default(now()) // Когда играли
+  duration        Int?      // Длительность в минутах
+  isPublished     Boolean   @default(true) // Видно ли игрокам
+  coverImage      String?   // Обложка сессии
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  participants    SessionParticipant[]
+  locations       SessionLocation[]
+  images          SessionImage[]
+  playerNotes     SessionPlayerNote[]
+
+  @@map("session_logs")
+}
+
+// Участники сессии
+model SessionParticipant {
+  id              String    @id @default(cuid())
+  sessionLogId    String
+  characterId     String?
+  characterName   String    // Сохраняем имя на момент сессии
+  wasPresent      Boolean   @default(true)
+  notes           String?   // Заметки по персонажу в этой сессии
+
+  sessionLog      SessionLog @relation(fields: [sessionLogId], references: [id], onDelete: Cascade)
+
+  @@map("session_participants")
+}
+
+// Локации посещенные в сессии
+model SessionLocation {
+  id              String    @id @default(cuid())
+  sessionLogId    String
+  name            String
+  description     String?
+  imageUrl        String?
+  order           Int       @default(0)
+  createdAt       DateTime  @default(now())
+
+  sessionLog      SessionLog @relation(fields: [sessionLogId], references: [id], onDelete: Cascade)
+
+  @@map("session_locations")
+}
+
+// Изображения сессии (арты, карты, скриншоты)
+model SessionImage {
+  id              String    @id @default(cuid())
+  sessionLogId    String
+  url             String
+  caption         String?
+  uploadedBy      String?   // userId кто загрузил
+  order           Int       @default(0)
+  createdAt       DateTime  @default(now())
+
+  sessionLog      SessionLog @relation(fields: [sessionLogId], references: [id], onDelete: Cascade)
+
+  @@map("session_images")
+}
+
+// Заметки игроков о сессии
+model SessionPlayerNote {
+  id              String    @id @default(cuid())
+  sessionLogId    String
+  userId          String
+  content         String
+  isPublic        Boolean   @default(true) // Видно ли другим игрокам
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  sessionLog      SessionLog @relation(fields: [sessionLogId], references: [id], onDelete: Cascade)
+
+  @@map("session_player_notes")
+}
+
+model Encounter {
+  id              String    @id @default(cuid())
+  name            String
+  description     String?
+  detailedDesc    String?
+  type            String    @default("MIXED")
+  order           Int       @default(0)
+  parentId        String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  companyId       String
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  parent          Encounter?  @relation("EncounterHierarchy", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  children        Encounter[] @relation("EncounterHierarchy")
+
+  notes           Note[]
+  diceRolls       DiceRoll[]
+
+  @@map("encounters")
+}
+
+model Note {
+  id          String    @id @default(cuid())
+  title       String?
+  content     String
+  privacy     String    @default("PUBLIC")
+  visibleTo   String    @default("")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  authorId    String
+  author      User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  encounterId String
+  encounter   Encounter @relation(fields: [encounterId], references: [id], onDelete: Cascade)
+
+  @@map("notes")
+}
+
+model Character {
+  id              String    @id @default(cuid())
+  name            String
+  class           String
+  level           Int       @default(1)
+  race            String?
+  background      String?
+  alignment       String?   // Lawful Good, Chaotic Neutral, etc.
+  avatarUrl       String?
+  
+  // Характеристики
+  strength        Int       @default(10)
+  dexterity       Int       @default(10)
+  constitution    Int       @default(10)
+  intelligence    Int       @default(10)
+  wisdom          Int       @default(10)
+  charisma        Int       @default(10)
+  
+  // Боевые параметры
+  hp              Int       @default(10)
+  maxHp           Int       @default(10)
+  ac              Int       @default(10)
+  
+  // Ресурсы (монеты D&D)
+  gold            Int       @default(0)  // Золото
+  silver          Int       @default(0)  // Серебро
+  copper          Int       @default(0)  // Медь
+  experience      Int       @default(0)
+  
+  // LongStoryShort стиль - история персонажа
+  backstory       String?   // Предыстория персонажа
+  personality     String?   // Черты характера
+  ideals          String?   // Идеалы
+  bonds           String?   // Привязанности
+  flaws           String?   // Слабости
+  appearance      String?   // Внешность
+  quote           String?   // Характерная фраза
+  
+  notes           String?   // Личные заметки
+  
+  // Тип персонажа
+  characterType   String    @default("player") // player, npc, companion
+  isActive        Boolean   @default(true)
+  isPublic        Boolean   @default(true) // Видят ли другие игроки
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  userId          String    // Владелец (игрок или мастер для NPC)
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  companyId       String?
+  company         Company?  @relation(fields: [companyId], references: [id], onDelete: SetNull)
+
+  inventory       InventoryItem[]
+  milestones      CharacterMilestone[]
+  relationships   CharacterRelationship[] @relation("CharacterFrom")
+  relatedTo       CharacterRelationship[] @relation("CharacterTo")
+
+  @@map("characters")
+}
+
+// Достижения/вехи персонажа (LongStoryShort стиль)
+model CharacterMilestone {
+  id              String    @id @default(cuid())
+  characterId     String
+  title           String    // "Победил дракона", "Стал лордом"
+  description     String?
+  sessionNumber   Int?      // В какой сессии произошло
+  date            DateTime  @default(now())
+  iconType        String    @default("star") // star, sword, heart, skull, crown, etc.
+  
+  character       Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+
+  @@map("character_milestones")
+}
+
+// Отношения между персонажами
+model CharacterRelationship {
+  id              String    @id @default(cuid())
+  fromCharacterId String
+  toCharacterId   String
+  relationshipType String   // ally, enemy, friend, rival, family, romantic, neutral
+  description     String?
+  
+  fromCharacter   Character @relation("CharacterFrom", fields: [fromCharacterId], references: [id], onDelete: Cascade)
+  toCharacter     Character @relation("CharacterTo", fields: [toCharacterId], references: [id], onDelete: Cascade)
+
+  @@unique([fromCharacterId, toCharacterId])
+  @@map("character_relationships")
+}
+
+model InventoryItem {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  quantity    Int       @default(1)
+  weight      Float     @default(0)
+  value       Int       @default(0)
+  category    String?
+  isEquipped  Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+
+  characterId String
+  character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+
+  @@map("inventory_items")
+}
+
+model Trader {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  location    String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  companyId   String
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  goods       TraderGood[]
+
+  @@map("traders")
+}
+
+model TraderGood {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  price       Int
+  stock       Int       @default(-1)
+  category    String?
+
+  traderId    String
+  trader      Trader    @relation(fields: [traderId], references: [id], onDelete: Cascade)
+
+  @@map("trader_goods")
+}
+
+model DiceRoll {
+  id          String    @id @default(cuid())
+  diceType    String    // d20, d6, etc.
+  result      Int
+  modifier    Int       @default(0)
+  total       Int
+  purpose     String?
+  createdAt   DateTime  @default(now())
+
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  encounterId String?
+  encounter   Encounter? @relation(fields: [encounterId], references: [id], onDelete: SetNull)
+
+  @@map("dice_rolls")
+}
+
+model Spell {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  level       Int
+  school      String
+  castingTime String
+  range       String
+  components  String
+  duration    String
+  description String
+  classes     String
+
+  @@map("spells")
+}
+
+model Creature {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  type        String
+  size        String
+  alignment   String?
+  ac          Int
+  hp          Int
+  speed       String
+  cr          String
+  description String
+  abilities   String
+
+  @@map("creatures")
+}
