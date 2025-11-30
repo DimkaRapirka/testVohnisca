@@ -124,7 +124,7 @@ export default function CompanyPage() {
 
               {/* Панель партии */}
               <div className="mb-6">
-                <PartyPanel companyId={companyId} isMaster={isMaster} />
+                <PartyPanel companyId={companyId} isMaster={isMaster} company={company} />
               </div>
 
               {/* NPC мастера */}

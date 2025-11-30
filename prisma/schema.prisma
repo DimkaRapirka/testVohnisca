@@ -71,6 +71,7 @@ model Company {
   partyLevel      Int       @default(1)
   status          String    @default("ACTIVE")
   imageUrl        String?
+  allowPlayersAddCharacters Boolean @default(true) // Разрешить игрокам добавлять персонажей
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 

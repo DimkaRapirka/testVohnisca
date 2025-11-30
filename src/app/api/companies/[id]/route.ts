@@ -11,6 +11,7 @@ const updateCompanySchema = z.object({
   genre: z.string().optional(),
   partyLevel: z.number().int().min(1).max(20).optional(),
   status: z.enum(['ACTIVE', 'PAUSED', 'COMPLETED']).optional(),
+  allowPlayersAddCharacters: z.boolean().optional(),
 });
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {

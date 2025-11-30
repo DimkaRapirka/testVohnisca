@@ -17,15 +17,21 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   const company = await prisma.company.findUnique({
     where: { id: params.id },
+    include: {
+      players: { select: { userId: true } },
+    },
   });
 
   if (!company) {
     return NextResponse.json({ error: 'Company not found' }, { status: 404 });
   }
 
-  // Только мастер может добавлять в партию
-  if (company.masterId !== session.user.id) {
-    return NextResponse.json({ error: 'Only master can add to party' }, { status: 403 });
+  const isMaster = company.masterId === session.user.id;
+  const isPlayer = company.players.some(p => p.userId === session.user.id);
+
+  // Проверяем права: мастер всегда может, игроки - только если разрешено
+  if (!isMaster && (!isPlayer || !company.allowPlayersAddCharacters)) {
+    return NextResponse.json({ error: 'Not allowed to add characters' }, { status: 403 });
   }
 
   try {
@@ -40,9 +46,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       return NextResponse.json({ error: 'Character not found' }, { status: 404 });
     }
 
-    // Проверяем что персонаж принадлежит мастеру или это NPC кампании
+    // Проверяем что персонаж принадлежит текущему пользователю (или мастеру для NPC)
     const isOwnCharacter = character.userId === session.user.id;
-    const isCompanyNpc = character.companyId === params.id && character.characterType === 'npc';
+    const isCompanyNpc = isMaster && character.companyId === params.id && character.characterType === 'npc';
 
     if (!isOwnCharacter && !isCompanyNpc) {
       return NextResponse.json({ error: 'Cannot add this character' }, { status: 403 });

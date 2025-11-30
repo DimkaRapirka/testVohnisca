@@ -31,9 +31,10 @@ import { CharacterEditor } from './character-editor';
 interface PartyPanelProps {
   companyId: string;
   isMaster: boolean;
+  company?: any;
 }
 
-export function PartyPanel({ companyId, isMaster }: PartyPanelProps) {
+export function PartyPanel({ companyId, isMaster, company }: PartyPanelProps) {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editingCharacterId, setEditingCharacterId] = useState<string | null>(null);
   const queryClient = useQueryClient();
@@ -46,6 +47,8 @@ export function PartyPanel({ companyId, isMaster }: PartyPanelProps) {
       return res.json();
     },
   });
+
+  const canAddCharacters = isMaster || company?.allowPlayersAddCharacters;
 
   // Загрузка полных данных персонажа для редактирования
   const { data: editingCharacter } = useQuery({
@@ -92,7 +95,7 @@ export function PartyPanel({ companyId, isMaster }: PartyPanelProps) {
             <Users className="h-5 w-5 text-primary" />
             Партия ({data?.party?.length || 0})
           </CardTitle>
-          {isMaster && (
+          {canAddCharacters && (
             <Button variant="outline" size="sm" onClick={() => setIsAddOpen(true)}>
               <Plus className="h-4 w-4 mr-1" />
               Добавить
@@ -128,11 +131,12 @@ export function PartyPanel({ companyId, isMaster }: PartyPanelProps) {
       </CardContent>
 
       {/* Диалог добавления */}
-      {isMaster && (
+      {canAddCharacters && (
         <AddToPartyDialog
           open={isAddOpen}
           onOpenChange={setIsAddOpen}
           companyId={companyId}
+          isMaster={isMaster}
         />
       )}
 
@@ -279,21 +283,28 @@ function AddToPartyDialog({
   open,
   onOpenChange,
   companyId,
+  isMaster,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   companyId: string;
+  isMaster: boolean;
 }) {
   const [tab, setTab] = useState<'characters' | 'npcs'>('characters');
   const queryClient = useQueryClient();
 
-  // Мои персонажи (мастера)
-  const { data: myCharacters } = useQuery({
+  // Мои персонажи
+  const { data: myCharacters, isLoading: charactersLoading } = useQuery({
     queryKey: ['my-characters-for-party'],
     queryFn: async () => {
       const res = await fetch('/api/characters?type=player');
-      if (!res.ok) throw new Error('Failed to fetch');
-      return res.json();
+      if (!res.ok) {
+        console.error('Failed to fetch characters:', await res.text());
+        throw new Error('Failed to fetch');
+      }
+      const data = await res.json();
+      console.log('My characters:', data);
+      return data;
     },
     enabled: open && tab === 'characters',
   });
@@ -325,11 +336,20 @@ function AddToPartyDialog({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ characterId }),
       });
-      if (!res.ok) throw new Error('Failed to add');
+      if (!res.ok) {
+        const error = await res.json();
+        console.error('Failed to add character:', error);
+        throw new Error(error.error || 'Failed to add');
+      }
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['party', companyId] });
+      onOpenChange(false);
+    },
+    onError: (error) => {
+      console.error('Add to party error:', error);
+      alert(`Ошибка: ${error.message}`);
     },
   });
 
@@ -356,23 +376,33 @@ function AddToPartyDialog({
             <UserPlus className="h-4 w-4 mr-1" />
             Мои персонажи
           </Button>
-          <Button
-            variant={tab === 'npcs' ? 'default' : 'ghost'}
-            size="sm"
-            onClick={() => setTab('npcs')}
-          >
-            <Sparkles className="h-4 w-4 mr-1" />
-            NPC кампании
-          </Button>
+          {isMaster && (
+            <Button
+              variant={tab === 'npcs' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setTab('npcs')}
+            >
+              <Sparkles className="h-4 w-4 mr-1" />
+              NPC кампании
+            </Button>
+          )}
         </div>
 
         {/* Список персонажей */}
         {tab === 'characters' && (
           <div className="space-y-2 max-h-80 overflow-y-auto">
-            {availableCharacters?.length === 0 ? (
-              <p className="text-gray-400 text-center py-4">
-                Нет доступных персонажей
-              </p>
+            {charactersLoading ? (
+              <p className="text-gray-400 text-center py-4">Загрузка...</p>
+            ) : availableCharacters?.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-gray-400 mb-2">Нет доступных персонажей</p>
+                <p className="text-sm text-gray-500">
+                  {myCharacters?.length === 0 
+                    ? 'Создайте персонажа в разделе "Персонажи"'
+                    : 'Все ваши персонажи уже в партии'
+                  }
+                </p>
+              </div>
             ) : (
               availableCharacters?.map((char: any) => (
                 <AddCharacterRow

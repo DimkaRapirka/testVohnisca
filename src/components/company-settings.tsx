@@ -35,6 +35,7 @@ export function CompanySettings({ open, onOpenChange, company }: CompanySettings
     description: company?.description || '',
     genre: company?.genre || '',
     partyLevel: company?.partyLevel || 1,
+    allowPlayersAddCharacters: company?.allowPlayersAddCharacters ?? true,
   });
 
   const updateMutation = useMutation({
@@ -162,6 +163,24 @@ export function CompanySettings({ open, onOpenChange, company }: CompanySettings
                 placeholder="Краткое описание вашей кампании..."
                 rows={4}
               />
+            </div>
+
+            <div className="flex items-center gap-3 p-4 border border-gray-700 rounded-lg">
+              <input
+                type="checkbox"
+                id="allowPlayersAddCharacters"
+                checked={formData.allowPlayersAddCharacters}
+                onChange={(e) => setFormData({ ...formData, allowPlayersAddCharacters: e.target.checked })}
+                className="w-4 h-4 rounded"
+              />
+              <div className="flex-1">
+                <Label htmlFor="allowPlayersAddCharacters" className="cursor-pointer">
+                  Разрешить игрокам добавлять персонажей
+                </Label>
+                <p className="text-xs text-gray-400 mt-1">
+                  Игроки смогут добавлять своих персонажей в партию без одобрения мастера
+                </p>
+              </div>
             </div>
 
             <div className="flex justify-end gap-2 pt-4 border-t border-gray-700">
