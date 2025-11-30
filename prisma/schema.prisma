@@ -86,6 +86,7 @@ model Company {
   wikiEntries     WikiEntry[]
   invitations     Invitation[]
   sessionLogs     SessionLog[]
+  maps            CompanyMap[]
 
   @@map("companies")
 }
@@ -595,3 +596,65 @@ model Creature {
 
   @@map("creatures")
 }
+
+// Интерактивные карты кампании
+model CompanyMap {
+  id              String    @id @default(cuid())
+  name            String    // "Карта мира", "Северное королевство"
+  description     String?
+  imageUrl        String    // URL изображения карты
+  order           Int       @default(0)
+  isPublished     Boolean   @default(false) // Видна ли игрокам
+  visibleToPlayers String   @default("") // ID участников через запятую (пусто = все видят если isPublished=true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  companyId       String
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  parentMapId     String?   // Ссылка на родительскую карту
+  parentMap       CompanyMap? @relation("MapHierarchy", fields: [parentMapId], references: [id], onDelete: SetNull)
+  childMaps       CompanyMap[] @relation("MapHierarchy")
+
+  markers         MapMarker[] @relation("MapMarkers")
+  linkedMarkers   MapMarker[] @relation("MarkerLinkedMap")
+
+  @@map("company_maps")
+}
+
+// Метки на карте
+model MapMarker {
+  id              String    @id @default(cuid())
+  name            String    // Название метки
+  description     String?   // Описание для всплывающей карточки
+  masterNotes     String?   // Заметки мастера (скрытые)
+  
+  // Позиция на карте (в процентах от размера изображения)
+  posX            Float     // 0-100%
+  posY            Float     // 0-100%
+  
+  // Тип метки
+  markerType      String    @default("location") // location, city, dungeon, npc, region, custom
+  iconType        String    @default("pin") // pin, castle, village, cave, portal, etc.
+  color           String    @default("#e63946") // Цвет метки
+  
+  isPublished     Boolean   @default(false) // Видна ли игрокам
+  
+  // Связь с дочерней картой (для региональных меток)
+  linkedMapId     String?
+  linkedMap       CompanyMap? @relation("MarkerLinkedMap", fields: [linkedMapId], references: [id], onDelete: SetNull)
+  
+  // Связи с сущностями
+  locationId      String?
+  sessionId       String?
+  npcId           String?
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  mapId           String
+  map             CompanyMap @relation("MapMarkers", fields: [mapId], references: [id], onDelete: Cascade)
+
+  @@map("map_markers")
+}
+

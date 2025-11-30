@@ -67,9 +67,10 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(company);
   } catch (error) {
+    console.error('Company creation error:', error);
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.errors }, { status: 400 });
     }
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error', details: String(error) }, { status: 500 });
   }
 }

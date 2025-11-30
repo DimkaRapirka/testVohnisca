@@ -24,12 +24,22 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const data = createEncounterSchema.parse(body);
 
-    // Check if user is master of the company
+    // Check if user is master or player of the company
     const company = await prisma.company.findUnique({
       where: { id: data.companyId },
+      include: {
+        players: { select: { userId: true } },
+      },
     });
 
-    if (!company || company.masterId !== session.user.id) {
+    if (!company) {
+      return NextResponse.json({ error: 'Company not found' }, { status: 404 });
+    }
+
+    const isMaster = company.masterId === session.user.id;
+    const isPlayer = company.players.some(p => p.userId === session.user.id);
+
+    if (!isMaster && !isPlayer) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

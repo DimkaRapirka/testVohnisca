@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
+import { CharacterExportButton } from './character-import-export';
 import {
   Heart,
   Shield,
@@ -106,6 +107,9 @@ export function CharacterCard({
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {(isOwner || isMaster) && (
+              <CharacterExportButton character={character} />
+            )}
             {(isOwner || isMaster) && onEdit && (
               <Button variant="ghost" size="sm" onClick={onEdit}>
                 <Edit className="h-4 w-4" />

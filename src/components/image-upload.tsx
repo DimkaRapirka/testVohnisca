@@ -25,12 +25,10 @@ export function ImageUpload({
   const [mode, setMode] = useState<'url' | 'upload'>('url');
   const [isUploading, setIsUploading] = useState(false);
   const [previewError, setPreviewError] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  const processFile = (file: File) => {
     // Проверка типа файла
     if (!file.type.startsWith('image/')) {
       alert('Пожалуйста, выберите изображение');
@@ -46,24 +44,45 @@ export function ImageUpload({
     setIsUploading(true);
     setPreviewError(false);
 
-    try {
-      // Конвертируем в base64 для локального хранения
-      // В продакшене здесь будет загрузка на S3/Cloudinary
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const base64 = event.target?.result as string;
-        onChange(base64);
-        setIsUploading(false);
-      };
-      reader.onerror = () => {
-        alert('Ошибка чтения файла');
-        setIsUploading(false);
-      };
-      reader.readAsDataURL(file);
-    } catch (error) {
-      console.error('Upload error:', error);
-      alert('Ошибка загрузки');
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const base64 = event.target?.result as string;
+      onChange(base64);
       setIsUploading(false);
+    };
+    reader.onerror = () => {
+      alert('Ошибка чтения файла');
+      setIsUploading(false);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) processFile(file);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      setMode('upload');
+      processFile(file);
     }
   };
 
@@ -121,9 +140,13 @@ export function ImageUpload({
           className={cn(
             'border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors',
             'hover:border-primary/50 hover:bg-primary/5',
+            isDragging && 'border-primary bg-primary/10',
             isUploading && 'pointer-events-none opacity-50'
           )}
           onClick={() => fileInputRef.current?.click()}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
         >
           <input
             ref={fileInputRef}
@@ -137,6 +160,13 @@ export function ImageUpload({
             <div className="flex flex-col items-center gap-2 py-4">
               <Loader2 className="h-8 w-8 text-primary animate-spin" />
               <p className="text-sm text-gray-400">Загрузка...</p>
+            </div>
+          ) : isDragging ? (
+            <div className="flex flex-col items-center gap-2 py-4">
+              <Upload className="h-8 w-8 text-primary animate-bounce" />
+              <p className="text-sm text-primary font-medium">
+                Отпустите для загрузки
+              </p>
             </div>
           ) : (
             <div className="flex flex-col items-center gap-2 py-4">

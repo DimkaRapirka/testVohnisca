@@ -35,6 +35,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
+  const isMaster = company.masterId === session.user.id;
+
   // Получаем всех активных персонажей в кампании (игроки + NPC)
   const characters = await prisma.character.findMany({
     where: {
@@ -42,6 +44,13 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       isActive: true,
       // Показываем игровых персонажей и NPC
       characterType: { in: ['player', 'npc', 'companion'] },
+      // Игроки видят только публичных NPC, мастер видит всех
+      ...(isMaster ? {} : {
+        OR: [
+          { characterType: { not: 'npc' } }, // Все не-NPC персонажи
+          { characterType: 'npc', isPublic: true }, // Только публичные NPC
+        ],
+      }),
     },
     include: {
       user: {
@@ -60,8 +69,6 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       { name: 'asc' },
     ],
   });
-
-  const isMaster = company.masterId === session.user.id;
 
   // Формируем данные партии
   const party = characters.map((char) => ({

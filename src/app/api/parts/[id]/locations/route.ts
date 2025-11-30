@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { isMaster, hasCompanyAccess } from '@/lib/privacy';
 import { z } from 'zod';
 
 const createLocationSchema = z.object({
@@ -16,7 +15,7 @@ const createLocationSchema = z.object({
   order: z.number().int().default(0),
 });
 
-// GET - Получить все локации части
+// GET - Получить локации части
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
@@ -25,59 +24,27 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 
   const part = await prisma.part.findUnique({
     where: { id: params.id },
-    include: {
-      company: {
-        include: {
-          players: { select: { userId: true } },
-        },
-      },
-    },
+    include: { company: { include: { players: true } } },
   });
 
   if (!part) {
     return NextResponse.json({ error: 'Part not found' }, { status: 404 });
   }
 
-  const playerIds = part.company.players.map((p) => p.userId);
-  const userIsMaster = isMaster(session.user.id, part.company.masterId);
-  const hasAccess = hasCompanyAccess(session.user.id, part.company.masterId, playerIds);
+  const isMaster = part.company.masterId === session.user.id;
+  const isPlayer = part.company.players.some(p => p.userId === session.user.id);
 
-  if (!hasAccess) {
+  if (!isMaster && !isPlayer) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  // Проверяем, опубликована ли часть для игрока
-  if (!userIsMaster && !part.isPublished) {
-    return NextResponse.json({ error: 'Part not available' }, { status: 403 });
-  }
-
   const locations = await prisma.location.findMany({
-    where: { partId: params.id },
-    include: {
-      npcs: true,
-      creatures: true,
-      lootItems: true,
-      events: true,
+    where: {
+      partId: params.id,
+      ...(isMaster ? {} : { isPublished: true }),
     },
     orderBy: { order: 'asc' },
   });
-
-  // Фильтруем для игрока
-  if (!userIsMaster) {
-    const filteredLocations = locations
-      .filter((loc) => loc.isPublished)
-      .map((loc) => {
-        const { masterNotes, ...publicLoc } = loc;
-        return {
-          ...publicLoc,
-          npcs: loc.npcs.filter((npc) => npc.isPublished).map(({ masterNotes, ...npc }) => npc),
-          creatures: loc.creatures.filter((c) => c.isPublished).map(({ masterNotes, ...c }) => c),
-          lootItems: loc.lootItems.filter((l) => l.isPublished).map(({ masterNotes, ...l }) => l),
-          events: loc.events.filter((e) => e.isPublished).map(({ masterNotes, ...e }) => e),
-        };
-      });
-    return NextResponse.json(filteredLocations);
-  }
 
   return NextResponse.json(locations);
 }
@@ -98,7 +65,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     return NextResponse.json({ error: 'Part not found' }, { status: 404 });
   }
 
-  if (!isMaster(session.user.id, part.company.masterId)) {
+  if (part.company.masterId !== session.user.id) {
     return NextResponse.json({ error: 'Only master can create locations' }, { status: 403 });
   }
 

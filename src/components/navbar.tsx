@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { Flame, Users, Scroll, User, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from './ui/button';
+import { NotificationsBell } from './notifications-bell';
 
 interface NavbarProps {
   user?: {
@@ -60,6 +61,7 @@ export function Navbar({ user }: NavbarProps) {
           <div className="flex items-center gap-4">
             {user ? (
               <>
+                <NotificationsBell />
                 <Link href="/profile">
                   <Button variant="ghost" size="sm">
                     <User className="h-4 w-4 mr-2" />

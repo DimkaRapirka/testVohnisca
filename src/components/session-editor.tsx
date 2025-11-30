@@ -13,6 +13,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
+import { ImageUpload } from './image-upload';
 import {
   BookOpen,
   Calendar,
@@ -66,29 +67,47 @@ export function SessionEditor({ open, onOpenChange, companyId, session }: Sessio
 
   // Инициализация при редактировании
   useEffect(() => {
-    if (session) {
-      setFormData({
-        title: session.title || '',
-        summary: session.summary || '',
-        detailedNotes: session.detailedNotes || '',
-        playedAt: session.playedAt ? new Date(session.playedAt).toISOString().split('T')[0] : '',
-        duration: session.duration?.toString() || '',
-        isPublished: session.isPublished ?? true,
-        coverImage: session.coverImage || '',
-      });
-      setParticipants(session.participants || []);
-      setLocations(session.locations || []);
-    } else {
-      // Автозаполнение участников из партии
-      if (partyData?.party) {
-        setParticipants(
-          partyData.party.map((char: any) => ({
-            characterId: char.id,
-            characterName: char.name,
-            wasPresent: true,
-            notes: '',
-          }))
-        );
+    if (open) {
+      if (session) {
+        // Редактирование существующей сессии
+        setFormData({
+          title: session.title || '',
+          summary: session.summary || '',
+          detailedNotes: session.detailedNotes || '',
+          playedAt: session.playedAt ? new Date(session.playedAt).toISOString().split('T')[0] : '',
+          duration: session.duration?.toString() || '',
+          isPublished: session.isPublished ?? true,
+          coverImage: session.coverImage || '',
+        });
+        setParticipants(session.participants || []);
+        setLocations(session.locations || []);
+      } else {
+        // Создание новой сессии - сброс формы
+        setFormData({
+          title: '',
+          summary: '',
+          detailedNotes: '',
+          playedAt: new Date().toISOString().split('T')[0],
+          duration: '',
+          isPublished: true,
+          coverImage: '',
+        });
+        setLocations([]); // Сбрасываем локации
+        setActiveTab('main'); // Возвращаемся на первую вкладку
+        
+        // Автозаполнение участников из партии
+        if (partyData?.party) {
+          setParticipants(
+            partyData.party.map((char: any) => ({
+              characterId: char.id,
+              characterName: char.name,
+              wasPresent: true,
+              notes: '',
+            }))
+          );
+        } else {
+          setParticipants([]);
+        }
       }
     }
   }, [session, partyData, open]);
@@ -148,6 +167,7 @@ export function SessionEditor({ open, onOpenChange, companyId, session }: Sessio
       ...formData,
       duration: formData.duration ? parseInt(formData.duration) : undefined,
       participants: participants.filter(p => p.characterName),
+      locations: locations.filter(l => l.name), // Добавляем локации
     };
 
     if (isEditing) {
@@ -277,15 +297,12 @@ export function SessionEditor({ open, onOpenChange, companyId, session }: Sessio
                 />
               </div>
 
-              <div>
-                <Label htmlFor="coverImage">URL обложки</Label>
-                <Input
-                  id="coverImage"
-                  value={formData.coverImage}
-                  onChange={(e) => setFormData({ ...formData, coverImage: e.target.value })}
-                  placeholder="https://..."
-                />
-              </div>
+              <ImageUpload
+                label="Обложка сессии"
+                value={formData.coverImage}
+                onChange={(url) => setFormData({ ...formData, coverImage: url })}
+                placeholder="URL обложки или загрузите с компьютера/телефона"
+              />
 
               <div className="flex items-center gap-3">
                 <input
@@ -383,10 +400,11 @@ export function SessionEditor({ open, onOpenChange, companyId, session }: Sessio
                     placeholder="Что там произошло..."
                     rows={2}
                   />
-                  <Input
+                  <ImageUpload
+                    label="Изображение локации"
                     value={loc.imageUrl}
-                    onChange={(e) => updateLocation(index, 'imageUrl', e.target.value)}
-                    placeholder="URL изображения (опционально)"
+                    onChange={(url) => updateLocation(index, 'imageUrl', url)}
+                    placeholder="URL изображения или загрузите с компьютера/телефона"
                   />
                 </div>
               ))}

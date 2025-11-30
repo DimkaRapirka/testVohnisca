@@ -48,13 +48,21 @@ export function CreateNoteDialog({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });
-      if (!res.ok) throw new Error('Failed to create note');
+      if (!res.ok) {
+        const error = await res.json();
+        console.error('Failed to create note:', error);
+        throw new Error(error.error || 'Failed to create note');
+      }
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['encounter', encounterId] });
       onOpenChange(false);
       setFormData({ title: '', content: '', privacy: 'PUBLIC' });
+    },
+    onError: (error) => {
+      console.error('Create note error:', error);
+      alert(`Ошибка создания заметки: ${error.message}`);
     },
   });
 
@@ -118,6 +126,14 @@ export function CreateNoteDialog({
               </SelectContent>
             </Select>
           </div>
+
+          {createMutation.isError && (
+            <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30">
+              <p className="text-sm text-red-400">
+                Ошибка: {createMutation.error?.message || 'Не удалось создать заметку'}
+              </p>
+            </div>
+          )}
 
           <div className="flex justify-end gap-2 pt-4">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

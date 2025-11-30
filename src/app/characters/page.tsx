@@ -1,13 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Navbar } from '@/components/navbar';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { CharacterCard } from '@/components/character-card';
 import { CharacterEditor } from '@/components/character-editor';
+import { CharacterImportExport } from '@/components/character-import-export';
 import { Scroll, Plus, Users, User, Sparkles } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { cn } from '@/lib/utils';
@@ -16,6 +17,7 @@ type FilterType = 'all' | 'player' | 'npc' | 'companion';
 
 export default function CharactersPage() {
   const { data: session } = useSession();
+  const queryClient = useQueryClient();
   const [filter, setFilter] = useState<FilterType>('all');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingCharacter, setEditingCharacter] = useState<any>(null);
@@ -29,6 +31,31 @@ export default function CharactersPage() {
       return res.json();
     },
   });
+
+  const handleImport = async (characterData: any) => {
+    try {
+      console.log('Импорт персонажа:', characterData);
+      const res = await fetch('/api/characters', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(characterData),
+      });
+      
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || 'Ошибка создания персонажа');
+      }
+      
+      // Обновляем список персонажей
+      queryClient.invalidateQueries({ queryKey: ['my-characters'] });
+      queryClient.invalidateQueries({ queryKey: ['characters'] });
+      
+      console.log('Персонаж успешно импортирован');
+    } catch (error) {
+      console.error('Ошибка импорта:', error);
+      alert(error instanceof Error ? error.message : 'Ошибка импорта персонажа');
+    }
+  };
 
   const filterOptions: { value: FilterType; label: string; icon: any }[] = [
     { value: 'all', label: 'Все', icon: Users },
@@ -48,10 +75,13 @@ export default function CharactersPage() {
             <h1 className="text-4xl font-fantasy text-primary mb-2">Мои персонажи</h1>
             <p className="text-gray-400">Управляйте своими героями и их развитием</p>
           </div>
-          <Button onClick={() => setIsCreateOpen(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Создать персонажа
-          </Button>
+          <div className="flex gap-2">
+            <CharacterImportExport onImport={handleImport} />
+            <Button onClick={() => setIsCreateOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Создать персонажа
+            </Button>
+          </div>
         </div>
 
         {/* Фильтры */}

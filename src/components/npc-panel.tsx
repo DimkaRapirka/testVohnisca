@@ -5,9 +5,10 @@ import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
-import { Sparkles, Plus, Eye, EyeOff, ChevronDown, ChevronUp, Edit } from 'lucide-react';
+import { Sparkles, Plus, Eye, EyeOff, ChevronDown, ChevronUp, Edit, UserPlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { NpcEditor } from './npc-editor';
+import { CharacterSelectModal } from './character-select-modal';
 
 interface NpcPanelProps {
   companyId: string;
@@ -17,6 +18,7 @@ interface NpcPanelProps {
 export function NpcPanel({ companyId, onCreateNpc }: NpcPanelProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [editingNpc, setEditingNpc] = useState<any>(null);
+  const [isSelectOpen, setIsSelectOpen] = useState(false);
 
   const { data: npcs, isLoading } = useQuery({
     queryKey: ['npcs', companyId],
@@ -37,9 +39,13 @@ export function NpcPanel({ companyId, onCreateNpc }: NpcPanelProps) {
               NPC мастера ({npcs?.length || 0})
             </CardTitle>
             <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => setIsSelectOpen(true)}>
+                <UserPlus className="h-4 w-4 mr-1" />
+                Добавить
+              </Button>
               <Button variant="outline" size="sm" onClick={onCreateNpc}>
                 <Plus className="h-4 w-4 mr-1" />
-                Создать NPC
+                Создать
               </Button>
               {npcs?.length > 0 && (
                 <Button
@@ -113,6 +119,14 @@ export function NpcPanel({ companyId, onCreateNpc }: NpcPanelProps) {
           npc={editingNpc}
         />
       )}
+
+      {/* Выбор существующего персонажа */}
+      <CharacterSelectModal
+        open={isSelectOpen}
+        onOpenChange={setIsSelectOpen}
+        companyId={companyId}
+        characterType="npc"
+      />
     </>
   );
 }

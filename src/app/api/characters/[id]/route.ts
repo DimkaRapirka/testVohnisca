@@ -44,6 +44,7 @@ const updateCharacterSchema = z.object({
   characterType: z.enum(['player', 'npc', 'companion']).optional(),
   isActive: z.boolean().optional(),
   isPublic: z.boolean().optional(),
+  companyId: z.string().optional(),
 });
 
 // GET - Получить персонажа

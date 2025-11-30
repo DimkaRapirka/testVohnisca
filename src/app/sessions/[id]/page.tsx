@@ -6,8 +6,11 @@ import { useSession } from 'next-auth/react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { SessionGallery } from '@/components/session-gallery';
 import { MasterOnly } from '@/components/master-only';
+import { ImageLightbox } from '@/components/image-lightbox';
 import {
   ArrowLeft,
   Calendar,
@@ -18,16 +21,29 @@ import {
   Eye,
   EyeOff,
   BookOpen,
+  Trash2,
+  AlertTriangle,
 } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
 import { useState } from 'react';
 import { SessionEditor } from '@/components/session-editor';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 export default function SessionDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { data: authSession } = useSession();
   const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [lightboxImage, setLightboxImage] = useState<{ url: string; alt: string } | null>(null);
 
   const sessionId = params.id as string;
 
@@ -79,17 +95,26 @@ export default function SessionDetailPage() {
           Назад к кампании
         </Button>
         {isMaster && (
-          <Button onClick={() => setIsEditOpen(true)}>
-            <Edit className="h-4 w-4 mr-2" />
-            Редактировать
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="destructive" onClick={() => setIsDeleteOpen(true)}>
+              <Trash2 className="h-4 w-4 mr-2" />
+              Удалить
+            </Button>
+            <Button onClick={() => setIsEditOpen(true)}>
+              <Edit className="h-4 w-4 mr-2" />
+              Редактировать
+            </Button>
+          </div>
         )}
       </div>
 
       {/* Заголовок */}
       <Card>
         {session.coverImage && (
-          <div className="h-48 overflow-hidden rounded-t-lg">
+          <div 
+            className="h-48 overflow-hidden rounded-t-lg cursor-pointer hover:opacity-90 transition-opacity"
+            onClick={() => setLightboxImage({ url: session.coverImage, alt: session.title })}
+          >
             <img
               src={session.coverImage}
               alt={session.title}
@@ -172,13 +197,14 @@ export default function SessionDetailPage() {
                   {session.locations.map((loc: any, index: number) => (
                     <div
                       key={loc.id}
-                      className="flex gap-4 p-4 rounded-lg bg-background-tertiary"
+                      className="flex gap-4 p-4 rounded-lg bg-background-tertiary hover:bg-background-secondary transition-colors"
                     >
                       {loc.imageUrl && (
                         <img
                           src={loc.imageUrl}
                           alt={loc.name}
-                          className="w-24 h-24 rounded-lg object-cover"
+                          className="w-24 h-24 rounded-lg object-cover cursor-pointer hover:opacity-80 transition-opacity"
+                          onClick={() => setLightboxImage({ url: loc.imageUrl, alt: loc.name })}
                         />
                       )}
                       <div className="flex-1">
@@ -277,6 +303,126 @@ export default function SessionDetailPage() {
           session={session}
         />
       )}
+
+      {/* Просмотр изображения */}
+      {lightboxImage && (
+        <ImageLightbox
+          open={!!lightboxImage}
+          onOpenChange={(open) => !open && setLightboxImage(null)}
+          imageUrl={lightboxImage.url}
+          alt={lightboxImage.alt}
+        />
+      )}
+
+      {/* Диалог удаления */}
+      {isMaster && (
+        <DeleteSessionDialog
+          open={isDeleteOpen}
+          onOpenChange={setIsDeleteOpen}
+          session={session}
+          onDelete={() => {
+            router.push(`/companies/${session.companyId}/chronicle`);
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+// Компонент диалога удаления
+function DeleteSessionDialog({
+  open,
+  onOpenChange,
+  session,
+  onDelete,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  session: any;
+  onDelete: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const [confirmText, setConfirmText] = useState('');
+
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/sessions/${session.id}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) throw new Error('Failed to delete session');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sessions', session.companyId] });
+      onOpenChange(false);
+      onDelete();
+    },
+  });
+
+  const handleDelete = () => {
+    if (confirmText === session.title) {
+      deleteMutation.mutate();
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-red-400">
+            <AlertTriangle className="h-5 w-5" />
+            Удалить сессию?
+          </DialogTitle>
+          <DialogDescription>
+            Это действие необратимо
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/30">
+            <p className="text-sm text-gray-300 mb-3">
+              Будут удалены:
+            </p>
+            <ul className="text-sm text-gray-400 space-y-1 list-disc list-inside">
+              <li>Запись сессии</li>
+              <li>Все локации ({session?.locations?.length || 0})</li>
+              <li>Все изображения ({session?.images?.length || 0})</li>
+              <li>Заметки игроков ({session?.playerNotes?.length || 0})</li>
+            </ul>
+          </div>
+
+          <div>
+            <Label className="text-sm text-red-400 font-medium mb-2 block">
+              Введите название сессии для подтверждения:
+            </Label>
+            <Input
+              value={confirmText}
+              onChange={(e) => setConfirmText(e.target.value)}
+              placeholder={session?.title}
+              className="border-red-500/50"
+            />
+          </div>
+
+          <div className="flex gap-2 justify-end">
+            <Button
+              variant="outline"
+              onClick={() => {
+                onOpenChange(false);
+                setConfirmText('');
+              }}
+            >
+              Отмена
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={confirmText !== session?.title || deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? 'Удаление...' : 'Удалить сессию'}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

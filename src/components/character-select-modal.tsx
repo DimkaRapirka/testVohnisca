@@ -21,6 +21,7 @@ interface CharacterSelectModalProps {
   companyId: string;
   currentCharacterId?: string;
   onCreateNew?: () => void;
+  characterType?: 'player' | 'npc' | 'companion';
 }
 
 export function CharacterSelectModal({
@@ -29,35 +30,66 @@ export function CharacterSelectModal({
   companyId,
   currentCharacterId,
   onCreateNew,
+  characterType = 'player',
 }: CharacterSelectModalProps) {
   const queryClient = useQueryClient();
   const [selectedId, setSelectedId] = useState<string | null>(currentCharacterId || null);
 
   // Загружаем персонажей пользователя
   const { data: characters, isLoading } = useQuery({
-    queryKey: ['my-characters'],
+    queryKey: ['my-characters', characterType],
     queryFn: async () => {
-      const res = await fetch('/api/characters?type=player');
+      const res = await fetch('/api/characters');
       if (!res.ok) throw new Error('Failed to fetch characters');
-      return res.json();
+      const allChars = await res.json();
+      
+      // Для NPC показываем всех, но NPC первыми
+      if (characterType === 'npc') {
+        const npcs = allChars.filter((c: any) => c.characterType === 'npc');
+        const others = allChars.filter((c: any) => c.characterType !== 'npc');
+        return [...npcs, ...others];
+      }
+      
+      // Для остальных типов фильтруем
+      return allChars.filter((c: any) => c.characterType === characterType);
     },
     enabled: open,
   });
 
-  // Мутация для выбора активного персонажа
+  // Мутация для выбора активного персонажа или добавления NPC
   const selectMutation = useMutation({
     mutationFn: async (characterId: string) => {
-      const res = await fetch(`/api/companies/${companyId}/select-character`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ characterId }),
-      });
-      if (!res.ok) throw new Error('Failed to select character');
-      return res.json();
+      if (characterType === 'npc') {
+        // Для NPC обновляем companyId и меняем тип на npc
+        const res = await fetch(`/api/characters/${characterId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            companyId,
+            characterType: 'npc',
+          }),
+        });
+        if (!res.ok) {
+          const error = await res.json();
+          throw new Error(error.error || 'Failed to add NPC to company');
+        }
+        return res.json();
+      } else {
+        // Для игроков выбираем активного персонажа
+        const res = await fetch(`/api/companies/${companyId}/select-character`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ characterId }),
+        });
+        if (!res.ok) throw new Error('Failed to select character');
+        return res.json();
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['party', companyId] });
       queryClient.invalidateQueries({ queryKey: ['company', companyId] });
+      queryClient.invalidateQueries({ queryKey: ['npcs', companyId] });
+      queryClient.invalidateQueries({ queryKey: ['my-characters'] });
       onOpenChange(false);
     },
   });
@@ -79,10 +111,13 @@ export function CharacterSelectModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <User className="h-5 w-5 text-primary" />
-            Выберите персонажа
+            {characterType === 'npc' ? 'Добавить NPC' : 'Выберите персонажа'}
           </DialogTitle>
           <DialogDescription>
-            Выберите персонажа для участия в этой кампании
+            {characterType === 'npc' 
+              ? 'Выберите NPC для добавления в эту кампанию'
+              : 'Выберите персонажа для участия в этой кампании'
+            }
           </DialogDescription>
         </DialogHeader>
 
@@ -91,17 +126,66 @@ export function CharacterSelectModal({
         ) : availableCharacters?.length === 0 ? (
           <div className="py-8 text-center">
             <User className="h-12 w-12 text-gray-600 mx-auto mb-4" />
-            <p className="text-gray-400 mb-4">У вас пока нет персонажей</p>
+            <p className="text-gray-400 mb-4">
+              {characterType === 'npc' ? 'У вас пока нет NPC' : 'У вас пока нет персонажей'}
+            </p>
             {onCreateNew && (
               <Button onClick={onCreateNew}>
                 <Plus className="h-4 w-4 mr-2" />
-                Создать персонажа
+                {characterType === 'npc' ? 'Создать NPC' : 'Создать персонажа'}
               </Button>
             )}
           </div>
         ) : (
           <div className="space-y-3">
-            {availableCharacters?.map((char: any) => (
+            {characterType === 'npc' && availableCharacters && (
+              <>
+                {/* NPC секция */}
+                {availableCharacters.filter((c: any) => c.characterType === 'npc').length > 0 && (
+                  <>
+                    <div className="text-sm font-medium text-purple-400 flex items-center gap-2 mt-2">
+                      <span>NPC</span>
+                      <div className="flex-1 h-px bg-purple-500/30" />
+                    </div>
+                    {availableCharacters
+                      .filter((c: any) => c.characterType === 'npc')
+                      .map((char: any) => (
+                        <CharacterOption
+                          key={char.id}
+                          character={char}
+                          isSelected={selectedId === char.id}
+                          isCurrent={currentCharacterId === char.id}
+                          onClick={() => setSelectedId(char.id)}
+                        />
+                      ))}
+                  </>
+                )}
+                
+                {/* Другие персонажи */}
+                {availableCharacters.filter((c: any) => c.characterType !== 'npc').length > 0 && (
+                  <>
+                    <div className="text-sm font-medium text-gray-400 flex items-center gap-2 mt-4">
+                      <span>Другие персонажи</span>
+                      <div className="flex-1 h-px bg-gray-700" />
+                    </div>
+                    {availableCharacters
+                      .filter((c: any) => c.characterType !== 'npc')
+                      .map((char: any) => (
+                        <CharacterOption
+                          key={char.id}
+                          character={char}
+                          isSelected={selectedId === char.id}
+                          isCurrent={currentCharacterId === char.id}
+                          onClick={() => setSelectedId(char.id)}
+                        />
+                      ))}
+                  </>
+                )}
+              </>
+            )}
+            
+            {/* Для не-NPC показываем как обычно */}
+            {characterType !== 'npc' && availableCharacters?.map((char: any) => (
               <CharacterOption
                 key={char.id}
                 character={char}
@@ -117,7 +201,7 @@ export function CharacterSelectModal({
           {onCreateNew && (
             <Button variant="outline" onClick={onCreateNew}>
               <Plus className="h-4 w-4 mr-2" />
-              Новый персонаж
+              {characterType === 'npc' ? 'Новый NPC' : 'Новый персонаж'}
             </Button>
           )}
           <div className="flex gap-2 ml-auto">
@@ -128,7 +212,10 @@ export function CharacterSelectModal({
               onClick={handleSelect}
               disabled={!selectedId || selectMutation.isPending}
             >
-              {selectMutation.isPending ? 'Выбор...' : 'Выбрать'}
+              {selectMutation.isPending 
+                ? (characterType === 'npc' ? 'Добавление...' : 'Выбор...') 
+                : (characterType === 'npc' ? 'Добавить' : 'Выбрать')
+              }
             </Button>
           </div>
         </div>

@@ -6,7 +6,7 @@ import { useParams } from 'next/navigation';
 import { Navbar } from '@/components/navbar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Plus, Scroll, Users, Settings, BookOpen, UserPlus, Sparkles } from 'lucide-react';
+import { Plus, Scroll, Users, Settings, BookOpen, UserPlus, Sparkles, MapPin } from 'lucide-react';
 import Link from 'next/link';
 import { CreateEncounterDialog } from '@/features/encounters/create-encounter-dialog';
 import { useSession } from 'next-auth/react';
@@ -16,6 +16,7 @@ import { RoleBadge } from '@/components/role-badge';
 import { useUserRole } from '@/hooks/useUserRole';
 import { NpcEditor } from '@/components/npc-editor';
 import { NpcPanel } from '@/components/npc-panel';
+import { CompanySettings } from '@/components/company-settings';
 
 export default function CompanyPage() {
   const { data: session } = useSession();
@@ -23,6 +24,7 @@ export default function CompanyPage() {
   const companyId = params.id as string;
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isNpcEditorOpen, setIsNpcEditorOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   const { data: company, isLoading } = useQuery({
     queryKey: ['company', companyId],
@@ -60,7 +62,7 @@ export default function CompanyPage() {
                   </p>
                 </div>
                 {isMaster && (
-                  <Button variant="outline">
+                  <Button variant="outline" onClick={() => setIsSettingsOpen(true)}>
                     <Settings className="h-4 w-4 mr-2" />
                     Настройки
                   </Button>
@@ -87,6 +89,12 @@ export default function CompanyPage() {
                   <Button size="lg" variant="outline">
                     <BookOpen className="h-5 w-5 mr-2" />
                     Хроника
+                  </Button>
+                </Link>
+                <Link href={`/companies/${companyId}/maps`}>
+                  <Button size="lg" variant="outline">
+                    <MapPin className="h-5 w-5 mr-2" />
+                    Карты
                   </Button>
                 </Link>
               </div>
@@ -137,25 +145,21 @@ export default function CompanyPage() {
             <div className="mb-6">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-2xl font-fantasy text-primary">Энкаунтеры</h2>
-                {isMaster && (
-                  <Button onClick={() => setIsCreateOpen(true)}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Создать энкаунтер
-                  </Button>
-                )}
+                <Button onClick={() => setIsCreateOpen(true)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Создать энкаунтер
+                </Button>
               </div>
 
               {company.encounters?.length === 0 ? (
                 <div className="text-center py-12 border border-primary/20 rounded-lg bg-background-secondary">
                   <Scroll className="h-16 w-16 text-gray-600 mx-auto mb-4" />
                   <h3 className="text-xl font-fantasy text-primary mb-2">Нет энкаунтеров</h3>
-                  <p className="text-gray-400 mb-6">Создайте первый энкаунтер для этой кампании</p>
-                  {isMaster && (
-                    <Button onClick={() => setIsCreateOpen(true)}>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Создать энкаунтер
-                    </Button>
-                  )}
+                  <p className="text-gray-400 mb-6">Создайте первый энкаунтер для заметок и планирования</p>
+                  <Button onClick={() => setIsCreateOpen(true)}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Создать энкаунтер
+                  </Button>
                 </div>
               ) : (
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -194,11 +198,18 @@ export default function CompanyPage() {
             companyId={companyId}
           />
           {isMaster && (
-            <NpcEditor
-              open={isNpcEditorOpen}
-              onOpenChange={setIsNpcEditorOpen}
-              companyId={companyId}
-            />
+            <>
+              <NpcEditor
+                open={isNpcEditorOpen}
+                onOpenChange={setIsNpcEditorOpen}
+                companyId={companyId}
+              />
+              <CompanySettings
+                open={isSettingsOpen}
+                onOpenChange={setIsSettingsOpen}
+                company={company}
+              />
+            </>
           )}
         </>
       )}
